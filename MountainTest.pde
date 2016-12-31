@@ -1,29 +1,28 @@
 // Author: Anne Zou
 // Email: anne.zou@vanderbilt.edu
-// Last Edited: 12/23/16
+// Last Edited: 12/29/16
 
 import java.util.*;
 import java.io.FileReader;
 
-// global variables and constant
+// global variables and constants
 
 int score = 0;
 int highScore = 0;
-PrintWriter writer;
-boolean GAME_OVER = false;
-PImage gameOverImg;
-PImage otherGameOverImg;
+//PrintWriter writer;
+
+PImage gameOverImg1;
+PImage gameOverImg2;
 float stopTime = -1;
-float stopTime2 = -1;
-float otherGameOverImgX = 0;
-float otherGameOverImgY = 0;
+float gameOverImg2X = 0;
+float gameOverImg2Y = 0;
 
 PImage blockImg;
-float BLOCK_WIDTH = 150;
-int TALLEST_INITIAL_HEIGHT = 4;
-float RISING_SPEED = 2;
+float BLOCK_WIDTH = 200;
+int TALLEST_INITIAL_HEIGHT = 7;
+float risingSpeed = 3;
 float SWIPE_SPEED = 100;
-int NUM_COLUMNS = 5;
+int NUM_COLUMNS = 3;
 
 Vector<Column> vecOfColumns = new Vector<Column>(NUM_COLUMNS);
 List<Block> looseBlocks = new LinkedList<Block>();
@@ -42,7 +41,7 @@ class Block {
     xPos = init_x;
     yPos = init_y;
     xVel = 0;
-    yVel = -RISING_SPEED;
+    yVel = -risingSpeed;
   } 
   public float getxPos() {
     return xPos;
@@ -94,6 +93,11 @@ class Column {
       b.print();
     }
   }
+  public void setyVel(float newyVel) {
+    for (Block b : list) {
+      b.setyVel(newyVel);
+    }
+  }
   public boolean isEmpty() {
     return list.isEmpty();
   }
@@ -105,7 +109,7 @@ class Column {
   }
   public void add() {
     if (isEmpty()) {
-      list.add(new Block(x, height + BLOCK_WIDTH/2));
+      list.add(new Block(x, height + 1.5 * BLOCK_WIDTH));
     } else {
       list.add(new Block(x, lastElement().getyPos() + BLOCK_WIDTH));
     }
@@ -127,6 +131,7 @@ class Column {
 boolean gameIsOver() {
   for (Column column : vecOfColumns) {
     if (column.firstElement().getyPos() < BLOCK_WIDTH/2) {
+      stopTime = -1;
       return true;
     }
   }
@@ -156,9 +161,12 @@ void handleSwipe(float mouseXsnapshot, float clickXcoord){
 }
 
 void updateScore() {
-  for (Block block : looseBlocks) {
+  Iterator<Block> iter = looseBlocks.iterator();
+  Block block;
+  while(iter.hasNext()) {
+    block = iter.next();
     if (block.getxPos() < 0 - BLOCK_WIDTH || block.getxPos() > width + BLOCK_WIDTH) {
-      looseBlocks.remove(block);
+      iter.remove();
       ++score;
       if (score > highScore) {
         highScore = score;
@@ -170,7 +178,7 @@ void updateScore() {
 void move() {
   for (Column column : vecOfColumns) {
     column.move();
-    if (column.isEmpty() || column.lastElement().getyPos() <= height) {
+    if (column.lastElement().getyPos() <= height + BLOCK_WIDTH) {
       column.add();
     }
   }
@@ -199,8 +207,8 @@ void setup() {
   textSize(50);
   rectMode(CENTER);
   
-  gameOverImg = loadImage("gameover.jpg");
-  otherGameOverImg = loadImage("socialism.png");
+  gameOverImg1 = loadImage("gameover.jpg");
+  //gameOverImg2 = loadImage("socialism.png");
   blockImg = loadImage("block.jpg");
   imageMode(CENTER);
  
@@ -210,8 +218,13 @@ void setup() {
     in.close();
   } catch (Exception e) {}
  
+  if (NUM_COLUMNS % 2 == 1)
   for (int i = 0; i < NUM_COLUMNS; ++i) {
-    vecOfColumns.add(i, new Column(width/2 + BLOCK_WIDTH*(i - floor(NUM_COLUMNS/2)) , rand.nextInt(TALLEST_INITIAL_HEIGHT) + 1));
+    vecOfColumns.add(i, new Column(width/2 + BLOCK_WIDTH*(i - floor(NUM_COLUMNS/2)) , rand.nextInt(TALLEST_INITIAL_HEIGHT) + 2));
+  }
+  if (NUM_COLUMNS % 2 == 0)
+  for (int i = 0; i < NUM_COLUMNS; ++i) {
+    vecOfColumns.add(i, new Column(width/2 + BLOCK_WIDTH*(i - NUM_COLUMNS/2 + .5) , rand.nextInt(TALLEST_INITIAL_HEIGHT) + 2));
   }
   for (Column column : vecOfColumns) {
     column.print();
@@ -224,11 +237,12 @@ void draw() {
   // check if game is lost
   if (!gameIsOver()) {
     
-    // check if a top block has been clicked
+    // check if the mouse has been clicked
     if (mousePressed && !blockClicked) {
       float mouseXsnapshot = mouseX;
       float mouseYsnapshot = mouseY;
       float millisSnapshot = millis();
+      // check if the clicked location is on a block at the top of a column
       clickedColumn = findColumnWhoseTopBlockIsAt(mouseXsnapshot, mouseYsnapshot);
       if (clickedColumn != null) {
         blockClicked = true;
@@ -240,7 +254,8 @@ void draw() {
     if (!mousePressed && blockClicked) {    
       float mouseXsnapshot = mouseX;
       float millisSnapshot = millis();
-      if (abs(mouseXsnapshot - clickXcoord) > BLOCK_WIDTH/2 && millisSnapshot - clickTime < 1500) {
+      // check if swipe distance is right & swipe time is short enough
+      if (abs(mouseXsnapshot - clickXcoord) > BLOCK_WIDTH/3 && millisSnapshot - clickTime < 1000) {
           handleSwipe(mouseXsnapshot, clickXcoord);
       }
       blockClicked = false;
@@ -257,20 +272,32 @@ void draw() {
     // print
     print();
     
+    // update risingSpeed
+    if (stopTime < 0) {
+      stopTime = millis();
+    }
+    if (stopTime > 0 && millis() - stopTime > 2000) {
+      risingSpeed += .1;
+      for (Column column : vecOfColumns) {
+        column.setyVel(-risingSpeed);
+      }
+      stopTime = millis();
+    }
+    
   } else { // game over
     
-    if (stopTime2 < 0) {
-      stopTime2 = millis();
-    }
-    if (stopTime2 > 0 && millis() - stopTime2 > 50) {
-      otherGameOverImgX = (float)rand.nextDouble() * width;
-      otherGameOverImgY = (float)rand.nextDouble() * height;
-      stopTime2 = millis();
-    }
+  //  if (stopTime < 0) {
+  //    stopTime = millis();
+  //  }
+  //  if (stopTime > 0 && millis() - stopTime > 50) {
+  //    gameOverImg2X = (float)rand.nextDouble() * width;
+  //    gameOverImg2Y = (float)rand.nextDouble() * height;
+  //    stopTime = millis();
+  //  }
     print();
-    image(gameOverImg, width/2, height/2);
-    image(otherGameOverImg, otherGameOverImgX, otherGameOverImgY, 50, 50);
+    image(gameOverImg1, width/2, height/2);
+    //image(gameOverImg2, gameOverImg2X, gameOverImg2Y, 50, 50);
     
   }
-  
+
 }
